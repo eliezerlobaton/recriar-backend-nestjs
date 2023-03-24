@@ -1,0 +1,42 @@
+name: Pull Request build
+
+on:
+  pull_request:
+    branches: [ dev, main, release ]
+
+env:
+  PACKAGE_PATH: '.'      # set this to the path to your web app project, defaults to the repository root
+  BUILD_CONFIG: 'Release'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [17.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    steps:
+      - uses: actions/checkout@v2
+      - name: Installing dependencies - Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm install glob rimraf
+      - run: npm install
+
+      # - name: Run unit tests
+      # - uses: actions/setup-node@v2
+      #   with:
+      #     node-version: ${{ matrix.node-version }}
+      #     cache: 'npm'
+      # - run: npm run test
+          
+      - name: Build
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm run build
+        

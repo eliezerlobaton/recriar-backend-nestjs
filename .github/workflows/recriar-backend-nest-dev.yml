@@ -1,0 +1,95 @@
+name: Recriar Nestjs Dev
+
+on:
+  push:
+    branches: [ dev ]
+
+env:
+  PACKAGE_PATH: '.'      # set this to the path to your web app project, defaults to the repository root
+  BUILD_CONFIG: 'Release'
+  
+  AWS_REGION: 'us-east-1'
+  ECR_REPOSITORY: '099723967292.dkr.ecr.us-east-1.amazonaws.com/dev-backend-nest'           # set this to your Amazon ECR repository name
+  ECS_SERVICE: 'backend-nest'                 # set this to your Amazon ECS service name
+  ECS_CLUSTER: 'ecs-cluster-dev'                 # set this to your Amazon ECS cluster name
+  ECS_TASK_DEFINITION: 'task-definition-dev.json' # set this to the path to your Amazon ECS task definition
+                                               # file, e.g. .aws/task-definition.json
+  CONTAINER_NAME: 'backend-nest'           # set this to the name of the container in the
+                                               # containerDefinitions section of your task definition
+jobs:
+  build-n-deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [17.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    steps:
+      - uses: actions/checkout@v2
+      - name: Installing dependencies - Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm install glob rimraf
+      - run: npm install
+
+      # - name: Run unit tests
+      #   uses: actions/setup-node@v2
+      #   with:
+      #     node-version: ${{ matrix.node-version }}
+      #     cache: 'npm'
+      # - run: npm run test
+          
+      - name: Build
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: dev-backend-nest
+          #IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: latest
+        run: |
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to ECS.
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f ./.ci/Dockerfile --build-arg AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" --build-arg AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" --build-arg CONNECTIONSTRINGS__DEFAULTCONNECTION="${{ secrets.RDS_DEV }}" --build-arg GITHUBSHA="${{ github.sha }}" --build-arg DATABASE_HOST="${{ secrets.DEV_DATABASE_HOST }}" --build-arg DATABASE_USER="${{ secrets.DEV_DATABASE_USER }}" --build-arg DATABASE_PASSWORD="${{ secrets.DEV_DATABASE_PASSWORD }}" --build-arg DATABASE_PORT="${{ secrets.DEV_DATABASE_PORT }}" --build-arg DATABASE_NAME="${{ secrets.DEV_DATABASE_NAME }}" --build-arg NESTJS_PORT="${{ secrets.DEV_NESTJS_PORT }}" --build-arg JWT_SECRET="${{ secrets.DEV_JWT_SECRET }}" --build-arg MODE="DEV" --build-arg RUN_MIGRATIONS="true" --build-arg LOKI="${{ secrets.DEV_LOKI_URL }}" --build-arg LIMESURVEY_API="${{ secrets.LIMESURVEY_API }}" --build-arg LIMESURVEY_USER="${{ secrets.LIMESURVEY_USER }}" --build-arg LIMESURVEY_PASSWORD="${{ secrets.LIMESURVEY_PASSWORD }}" --build-arg MAILCHIMP_PREFIX="${{ secrets.MAILCHIMP_PREFIX }}" --build-arg MAILCHIMP_API_KEY="${{ secrets.MAILCHIMP_API_KEY }}" --build-arg MAILCHIMP_AUDIENCE_ID="${{ secrets.MAILCHIMP_AUDIENCE_ID }}" --build-arg GUIDANCE_AWS_BUCKET_NAME="${{ secrets.GUIDANCE_AWS_BUCKET_NAME }}" --build-arg STATIC_FOLDERS_PATH="${{ secrets.STATIC_FOLDERS_PATH }}" --build-arg TWILIO_ACCOUNT_SID="${{ secrets.TWILIO_ACCOUNT_SID }}" --build-arg TWILIO_API_KEY="${{ secrets.TWILIO_API_KEY }}" --build-arg TWILIO_API_SECRET="${{ secrets.TWILIO_API_SECRET }}" --build-arg TWILIO_STATUS_CALLBACK_METHOD="${{ secrets.TWILIO_STATUS_CALLBACK_METHOD }}" --build-arg TWILIO_STATUS_CALLBACK_URL="${{ secrets.DEV_TWILIO_STATUS_CALLBACK_URL }}" --build-arg GOOGLE_CLIENT_EMAIL="${{ secrets.GOOGLE_CLIENT_EMAIL }}" --build-arg GOOGLE_PRIVATE_KEY="${{ secrets.GOOGLE_PRIVATE_KEY }}" --build-arg GOOGLE_CALENDAR_ID="${{ secrets.GOOGLE_CALENDAR_ID }}" --build-arg GOOGLE_CALENDAR_WATCHER_TOKEN="${{ secrets.GOOGLE_CALENDAR_WATCHER_TOKEN }}" --build-arg CALENDLY_URL="${{ secrets.CALENDLY_URL }}" --build-arg GOOGLE_FIREBASE_SERVICE_CREADENTIALS="${{ secrets.GOOGLE_FIREBASE_SERVICE_CREADENTIALS }}" --build-arg GOOGLE_FIREBASE_DATABASE_URL="${{ secrets.GOOGLE_FIREBASE_DATABASE_URL }}" --build-arg GOOGLE_FIREBASE_CONFIG="${{ secrets.GOOGLE_FIREBASE_CONFIG }}" .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Abort ECS deploy
+        if: ${{ failure() }}
+        run: echo "Failure detected. Aborting ECS deploy"
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

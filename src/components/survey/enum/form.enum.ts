@@ -1,0 +1,16 @@
+export enum GuidanceSurvyes {
+  AuditC = 'AUDIT-C',
+  Phq9 = 'PHQ-9',
+  IpacAdap = 'IPAC-ADAP',
+  Dds = 'DDS',
+  Iris = 'IRIS',
+  Mna = 'MNA',
+  Ocean = 'OCEAN',
+  Grit = 'GRIT',
+  Fagerstrom = 'FAGERSTROM',
+  WhoqolA = 'WHOQOL-A',
+  AssistOms = 'ASSIST-OMS',
+  Katz = 'KATZ',
+  AlimentacaoMs = 'ALIMENTACAO-MS',
+  AsaA = 'ASA-A',
+}

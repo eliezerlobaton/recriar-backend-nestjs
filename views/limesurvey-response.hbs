@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://guidance-mages-results.s3.amazonaws.com/limesurvey-response.css" type="text/css">
+        <title>Avaliação</title>
+    </head>
+
+    <body>
+        <div id="page-preloader" class="preloader-loaded preloader-loaded">
+            <div class="page-preloader-spin"></div>
+        </div>
+        <div class="container">
+            <div class="column">
+                <h3>Avaliação</h3>
+            </div>
+        </div>
+    </body>
+    <script>
+            fetch('https://{{ host }}/backend-nest/limesurveyintegration/integrate-responses/{{ surveyId }}').then(function (response) {
+            return response.json();
+        }).then(function (data) {
+            console.log(data);
+            for (let i = 0; i < data.surveyResults.length; i++) {
+                let surveyResult = data.surveyResults[ i ];
+                let surveyResultContainer = document.querySelector('.container')
+                let surveyResultDiv = document.querySelector('.column');
+                console.log(surveyResultDiv);
+                let surveyResultTitle = document.createElement('h2');
+                surveyResultTitle.innerHTML = surveyResult.description;
+                let surveyResultText = document.createElement('p');
+                surveyResultText.innerHTML = surveyResult.text;
+                surveyResultContainer.appendChild(surveyResultDiv)
+                surveyResultDiv.appendChild(surveyResultTitle);
+                surveyResultDiv.appendChild(surveyResultText);
+                document.body.appendChild(surveyResultContainer);
+            }
+            document.querySelector('.page-preloader-spin').style.display = 'none';
+            document.querySelector('#page-preloader').style.display = 'none';
+            document.querySelector('h3').style.display = 'block';
+        });
+    </script>
+
+</html>

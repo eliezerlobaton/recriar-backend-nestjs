@@ -1,0 +1,17 @@
+export enum LimeSurveyIds {
+  AuditC = <any>653567,
+  Phq9 = <any>917571,
+  IpacAdap = <any>244252,
+  Dds = <any>535557,
+  Iris = <any>789592,
+  Mna = <any>117714,
+  Ocean = <any>444252,
+  Grit = <any>116154,
+  Fagerstrom = <any>994377,
+  WhoqolA = <any>436176,
+  AssistOms = <any>421739,
+  Katz = <any>677269,
+  AlimentacaoMs = <any>718279,
+  Onboarding = <any>696272,
+  AsaA = <any>318555,
+}
